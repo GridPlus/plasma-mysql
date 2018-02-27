@@ -1,0 +1,25 @@
+{
+  "name": "plasma-mysql",
+  "version": "0.0.0",
+  "description": "A mysql wrapper for plasma functionality",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/GridPlus/plasma-mysql.git"
+  },
+  "keywords": [
+    "Ethereum",
+    "Plasma",
+    "SQL",
+    "mysql"
+  ],
+  "author": "Alex Miller",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/GridPlus/plasma-mysql/issues"
+  },
+  "homepage": "https://github.com/GridPlus/plasma-mysql#readme"
+}
