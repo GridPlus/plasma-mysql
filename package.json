@@ -1,6 +1,6 @@
 {
   "name": "plasma-sql",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "A mysql wrapper for plasma functionality",
   "main": "index.js",
   "scripts": {

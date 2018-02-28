@@ -71,7 +71,7 @@ plasma-sql provides an easy interface for managing plasma transactions off-chain
 
 Replay a deposit that was made on the root chain. This will create a UTXO object.
 
-*params*:
+*params (Object)*:
 ```
 {
   to: <string>,     // 0x-prefixed Ethereum address of depositor
@@ -82,13 +82,13 @@ Replay a deposit that was made on the root chain. This will create a UTXO object
 }
 ```
 
-*cb*: (Error)
+*cb: (Error)*
 
 ### self.spendUtxo(params, cb)
 
 Spend a UTXO and create 1 or 2 new UTXOs from it. Signature from user is required.
 
-*params*:
+*params (Object)*:
 ```
 {
   id: <string>,     // id of the UTXO (txHash or derived from previous UTXO)
@@ -100,13 +100,13 @@ Spend a UTXO and create 1 or 2 new UTXOs from it. Signature from user is require
 }
 ```
 
-*cb*: (Error)
+*cb: (Error)*
 
 ### self.getUserUtxos(user, cb)
 
 Get all of a user's open UTXOs.
 
-*cb*: (Error, array) with array of:
+*cb: (Error, array)* with array of:
 
 ```
 {
@@ -124,7 +124,7 @@ Get all of a user's open UTXOs.
 
 Replay the start of a withdrawal on the root chain. This will delete the corresponding UTXO in the database.
 
-*params* Object:
+*params (Object)*:
 ```
 {
   id: <string>,         // UTXO identifier
@@ -133,15 +133,15 @@ Replay the start of a withdrawal on the root chain. This will delete the corresp
   tokenId: <string>     // [OPTIONAL] address of token being withdrawn
 }
 ```
-*cb* Error
+*cb (Error)*
 
 ### self.getUtxoProvenance(id, cb)
 
 Get the full provenance of a UTXO given its id.
 
-*id* string: UTXO identifier to get provenance on
+*id (string)*: UTXO identifier to get provenance on
 
-*cb*: (Error, array) with array of Spend objects:
+*cb (Error, array)* with array of Spend objects:
 
 ```
 {
