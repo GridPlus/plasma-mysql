@@ -46,6 +46,18 @@ plasmaConn.query(`SELECT * FROM Utxos WHERE id='${deposit.txHash}'`, (err, resul
 })
 ```
 
+## UTXO Standard
+
+Newly created UTXO (unspent transaction output) records have id equal to the Ethereum transaction hash of the corresponding deposit. Otherwise, the id of a UTXO can be determined as:
+
+```
+keccak256(previousId, to, value)
+```
+
+Where `previousId` is the id of the UTXO that created this one.
+
+To withdraw a UTXO on a plasma chain, the user would need to collect signatures spending each UTXO that led to the one being withdrawn. Thus, UTXO spends and signatures thereof are stored in the sql database.
+
 ## API
 
 plasma-sql provides an easy interface for managing plasma transactions off-chain.

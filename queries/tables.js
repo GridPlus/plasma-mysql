@@ -16,8 +16,5 @@ exports.tables = function() {
   let q5 = 'CREATE TABLE IF NOT EXISTS Withdrawals (utxoId VARCHAR(66), startedTxHash VARCHAR(66),';
   q5 += ' completed BOOL, createdAt TIMESTAMP)';
 
-  let q6 = 'CREATE TABLE IF NOT EXISTS Merges (utxoId1 VARCHAR(66), utxoId2 VARCHAR(66), ';
-  q6 += 'newUtxoId VARCHAR(66), v TINYINT(1), r VARCHAR(66), s VARCHAR(66), createdAt TIMESTAMP)';
-
-  return [q1, q2, q3, q4, q5, q6];
+  return [q1, q2, q3, q4, q5];
 }

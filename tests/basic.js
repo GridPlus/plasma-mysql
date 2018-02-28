@@ -18,7 +18,8 @@ const plasmaSql = new PlasmaSql(conn);
 
 
 function getSpendHash(id, to, value) {
-  return sha3(`${id}${to.slice(2)}${leftPad(value.toString(16), 64, '0')}`);
+  const prehash = `${id}${to.slice(2)}${leftPad(value.toString(16), 64, '0')}`;
+  return sha3(prehash);
 }
 
 function signHash(h, pkey) {
@@ -66,14 +67,6 @@ describe('1. Table checks', () => {
       done();
     });
   });
-
-  it('Should check Merges table', (done) => {
-    conn.query('SHOW COLUMNS FROM Merges', (err, rows) => {
-      assert(err === null);
-      assert(rows.length === 7);
-      done();
-    });
-  });
 });
 
 let id1;
@@ -113,23 +106,26 @@ describe('2. Create, spend, and merge UTXOs', () => {
     });
   });
 
-  /*it('Should successfully spend some of the UTXO', (done) => {
-    const h = getSpendHash(id1, newAddr, 2);
+  it('Should successfully spend some of the UTXO', (done) => {
+    const to = '0x' + newAddr.toString('hex');
+    const h = getSpendHash(id1, to, 2);
     const sig = signHash(h, key);
     const params = {
       id: id1,
-      to: newAddr,
-      value: 10,
+      to: to,
+      value: 2,
       v: sig.v,
       r: sig.r.toString('hex'),
       s: sig.s.toString('hex'),
     };
     const signerPubKey = ethutil.ecrecover(Buffer.from(h.slice(2), 'hex'), sig.v, sig.r, sig.s);
-    assert(ethutil.publicToAddress(signerPubKey).toString('hex') === addr.toString('hex'));
+    const signer = '0x' + ethutil.publicToAddress(signerPubKey).toString('hex');
+    assert(signer === addr);
     plasmaSql.spendUtxo(params, (err) => {
-      console.log(err)
       assert(err === null)
       done();
     });
-  })*/
-})
+  });
+
+
+});

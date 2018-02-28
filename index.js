@@ -30,11 +30,11 @@ class PlasmaSql {
     // Check the signature spending the UTXO
     try {
       // Check the signer of the spend message
-      const hash = sha3(`${id}${to.slice(2)}${leftPad(value.toString(16), 64, '0')}`);
+      const hash = this.newId(id, to, value);
       const br = Buffer.from(r, 'hex');
       const bs = Buffer.from(s, 'hex');
       const signerPubKey = ethutil.ecrecover(Buffer.from(hash.slice(2), 'hex'), v, br, bs);
-      const signer = ethutil.publicToAddress(signerPubKey);
+      const signer = '0x' + ethutil.publicToAddress(signerPubKey).toString('hex');
       const q = getUtxo(id);
       this.getOne(q, (err, utxo) => {
         if (utxo.owner != signer) { cb('Signer does not own UTXO.'); }
@@ -46,9 +46,9 @@ class PlasmaSql {
             else {
               // Create new UTXO ids deterministically
               // Create the new UTXO(s)
-              const newId1 = this.newId(to, id);
+              const newId1 = hash;
               const q1 = createUtxo(to, value, newId1);
-              const newId2 = value < utxo.value ? this.newId(signer, id) : null;
+              const newId2 = value < utxo.value ? this.newId(id, signer, utxo.value - value) : null;
               const q2 = newId2 == null ? null : createUtxo(to, utxo.value - value, newId2);
               const qs = newId2 == null ? [q1] : [q1, q2];
               this.multiQuery(qs, cb);
@@ -66,44 +66,6 @@ class PlasmaSql {
   // call a separate function to mark the withdrawal as finalized.
   startWithdrawal(params, cb) {
     const { id, txHash } = params;
-  }
-
-  // Allow a user to merge two UTXOs
-  merge(params, cb) {
-    const { id1, id2, v, r, s } = params;
-    try {
-      const hash = sha3(`${id1}${id2}`);
-      const signerPubKey = ethutil.ecrecover(hash, v, r, s);
-      const signer = ethutil.publicToAddress(signerPubKey);
-      const q1 = utxo.getUtxo(id1);
-      const q2 = utxo.getUtxo(id2);
-      let sum = 0;
-      // Get the UTXOs and ensure the merger owns both
-      this.getOne(q1, (err, utxo1) => {
-        if (err) { cb(err); }
-        else if (utxo1.owner != signer) { cb('Tx1 does not belong to signer.'); }
-        else {
-          sum += utxo1.value;
-          this.getOne(q2, (err, utxo2) => {
-            if (err) { cb(err); }
-            else if (utxo2.owner != signer) { cb('Tx2 does not belong to signer.'); }
-            else {
-              sum += utxo2.value;
-              // Delete the original UTXOs
-              this.deleteUtxos([id1, id2], (err) => {
-                if (err) { cb(err); }
-                else {
-                  // Merge the UTXOs
-                  const newId = this.newId(signer, id1, id2);
-                  const createQ = createUtxo(signer, sum, newId);
-                  this.query(createQ, cb);
-                }
-              })
-            }
-          })
-        }
-      })
-    } catch (err) { cb(err); }
   }
 
   // Send a bunch of CREATE IF NOT EXISTS commands to the connection.
@@ -134,12 +96,12 @@ class PlasmaSql {
   // Delete one or more utxos. Expecting ids to be an array, but can handle
   // a single number
   deleteUtxos(ids, cb, outerCb=null) {
-    if (typeof ids == 'number') { ids = [ids]; }
+    if (typeof ids == 'string') { ids = [ids]; }
     if (outerCb == null) { outerCb = cb; }
     if (ids.length == 0 ) { outerCb(null); }
     else {
       const id = ids.pop();
-      const delQ = utxo.delete(id);
+      const delQ = deleteUtxo(id);
       this.query(delQ, (err) => {
         if (err) { outerCb(err); }
         else { this.deleteUtxos(ids, cb, outerCb); }
@@ -157,8 +119,9 @@ class PlasmaSql {
     });
   }
 
-  newId(to, oldId, extraData=1) {
-    return sha3(to, oldId, extraData);
+  newId(oldId, to, value) {
+    const prehash = `${oldId}${to.slice(2)}${leftPad(value.toString(16), 64, '0')}`;
+    return sha3(prehash);
   }
 
   close() { this.conn.end(); }
