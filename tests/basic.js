@@ -31,7 +31,7 @@ describe('1. Table checks', () => {
   it('Should check Utxo table', (done) => {
     conn.query('SHOW COLUMNS FROM Utxos', (err, rows) => {
       assert(err === null);
-      assert(rows.length === 7);
+      assert(rows.length === 9);
       done();
     });
   });
@@ -47,7 +47,7 @@ describe('1. Table checks', () => {
   it('Should check Spends table', (done) => {
     conn.query('SHOW COLUMNS FROM Spends', (err, rows) => {
       assert(err === null);
-      assert(rows.length === 8);
+      assert(rows.length === 10);
       done();
     });
   });
@@ -63,7 +63,15 @@ describe('1. Table checks', () => {
   it('Should check Withdrawals table', (done) => {
     conn.query('SHOW COLUMNS FROM Withdrawals', (err, rows) => {
       assert(err === null);
-      assert(rows.length === 4);
+      assert(rows.length === 6);
+      done();
+    });
+  });
+
+  it('Should check Transfers table', (done) => {
+    conn.query('SHOW COLUMNS FROM Transfers', (err, rows) => {
+      assert(err === null);
+      assert(rows.length === 5);
       done();
     });
   });
@@ -72,8 +80,10 @@ describe('1. Table checks', () => {
 let id1;
 const newPkey = '9c22ff5f21f0b81b113e63f7db6da94fedef11b2119b4088b89664fb9a3cb658'
 const newAddr = ethutil.privateToAddress(Buffer.from(newPkey, 'hex'));
-
-describe('2. Create, spend, and merge UTXOs', () => {
+let newId1;
+let newId2;
+let newId3;
+describe('2. Create and spend UTXOs', () => {
   it('Should relay a deposit', (done) => {
     const deposit = {
       to: addr,
@@ -156,13 +166,79 @@ describe('2. Create, spend, and merge UTXOs', () => {
       done();
     });
   });
+
+  it('Should check spends and find a new record', (done) => {
+    plasmaSql.query('SELECT * FROM Spends', (err, spends) => {
+      assert(err === null);
+      assert(spends.length === 1);
+      // newTx2 belongs to the original sender (it is the change UTXO)
+      newId1 = spends[0].newTx1;
+      newId2 = spends[0].newTx2;
+      done();
+    });
+  });
+
+  it('Should spend the new Utxo', (done) => {
+    const to = addr;
+    const h = getSpendHash(newId1, to, 1);
+    const sig = signHash(h, newPkey);
+    const params = {
+      id: newId1,
+      to: to,
+      value: 1,
+      v: sig.v,
+      r: sig.r.toString('hex'),
+      s: sig.s.toString('hex'),
+    };
+    plasmaSql.spendUtxo(params, (err, newIds) => {
+      assert(err === null);
+      newId3 = newIds.newId2;
+      done();
+    });
+  });
+});
+
+let lastSpendId;
+describe('Checkpointing', () => {
+  it('Should get the last spend id', (done) => {
+    plasmaSql.getLastSpendId((err, id) => {
+      assert(err === null);
+      lastSpendId = id;
+      done();
+    });
+  });
+
+  it('Should get the list of spends logged', (done) => {
+    plasmaSql.getSpends(1, lastSpendId, (err, spends) => {
+      assert(err === null);
+      assert(spends.length === 2);
+      done();
+    });
+  });
+
+  it('Should log that a user withdrawal has been initiated', (done) => {
+    const madeUpHash = '0xa243c4c597803ed1c261dafb25fc0e2175cc3a4eae168302cc594ff614e98ffc'
+    plasmaSql.recordWithdrawalStarted({ id: newId1, txHash: madeUpHash }, (err) => {
+      assert(err === null);
+      done();
+    });
+  });
+
+  it('Should get the provenance on newId1', (done) => {
+    plasmaSql.getUtxoProvenance(newId3, (err, provenance) => {
+      assert(err === null);
+      assert(provenance.length === 2);
+      done();
+    })
+  })
 });
 
 describe('Cleanup', () => {
   it('Should drop tables', () => {
-    const q = 'drop table Creates; drop table Deposits; drop table Spends; drop table Utxos; drop table Withdrawals';
+    let q = 'drop table Creates; drop table Deposits; drop table Spends; ';
+    q += 'drop table Utxos; drop table Withdrawals; drop table Transfers';
     plasmaSql.query(q, (err) => {
       assert(err === null);
-    })
-  })
+    });
+  });
 });

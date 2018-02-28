@@ -1,6 +1,13 @@
 // Plasma functionality for a MySQL instance
 const { tables } = require('./queries/tables.js');
-const { logDeposit, createUtxo, getUtxo, deleteUtxo } = require('./queries/utxo.js');
+const {
+  logDeposit,
+  createUtxo,
+  getUtxo,
+  deleteUtxo,
+  spendUtxo,
+  logWithdrawalStarted,
+} = require('./queries/utxo.js');
 const sha3 = require('solidity-sha3').default;
 const leftPad = require('left-pad');
 const ethutil = require('ethereumjs-util');
@@ -17,11 +24,21 @@ class PlasmaSql {
     const { to, value, txHash } = params;
     const chainId = params.chainId ? params.chainId : 0;
     const tokenId = params.tokenId ? params.tokenId : '';
-
     // First log the deposit
     const depositQ = logDeposit(to, value, txHash, chainId, tokenId);
     const utxoQ = createUtxo(to, value, txHash);
     this.multiQuery([depositQ, utxoQ], cb);
+  }
+
+  // Record a withdrawal that started on the root chain. This marks the utxo
+  // as withdrawn and creates a withdrawal record
+  recordWithdrawalStarted(params, cb) {
+    const { id, txHash } = params;
+    const chainId = params.chainId ? params.chainId : 0;
+    const tokenId = params.tokenId ? params.tokenId : '';
+    const withdrawQ = logWithdrawalStarted(id, txHash, chainId, tokenId);
+    const updateQ = `UPDATE Utxos SET withdrawn=1 WHERE id='${id}'`;
+    this.multiQuery([withdrawQ, updateQ], cb);
   }
 
   // Allow a user to spend a UTXO and create 1 or 2 new UTXOs from that spend
@@ -49,10 +66,14 @@ class PlasmaSql {
               // Create the new UTXO(s)
               const newId1 = hash;
               const q1 = createUtxo(to, value, newId1);
-              const newId2 = value < utxo.value ? this.newId(id, signer, utxo.value - value) : null;
-              const q2 = newId2 == null ? null : createUtxo(signer, utxo.value - value, newId2);
-              const qs = newId2 == null ? [q1] : [q1, q2];
-              this.multiQuery(qs, cb);
+              const newId2 = value < utxo.value ? this.newId(id, signer, utxo.value - value) : '';
+              const q2 = newId2 == '' ? null : createUtxo(signer, utxo.value - value, newId2);
+              let qs = newId2 == null ? [q1] : [q1, q2];
+              qs.push(spendUtxo(id, value, to, newId1, newId2, v-27, r, s));
+              this.multiQuery(qs, (err) => {
+                if (err) { cb(err); }
+                else { cb(null, { newId1, newId2 }); }
+              });
             }
           })
         }
@@ -85,6 +106,38 @@ class PlasmaSql {
     this.multiQuery(tableQs, (err) => {
       if (err) { throw new Error(err); }
     })
+  }
+
+  // Get the id of the last spend on record
+  getLastSpendId(cb) {
+    this.query('SELECT id FROM Spends ORDER BY id DESC LIMIT 1', (err, rows) => {
+      if (err) { cb(err); }
+      else if (rows.length === 0) { cb('No spends on record.'); }
+      else { cb(null, rows[0].id); }
+    })
+  }
+
+  // Get list of spends between two values. Limited to 1000 records
+  getSpends(start, end, cb) {
+    if (typeof start != 'number' || typeof end != 'number') { cb('Please provide start and end ids.'); }
+    else {
+      if (end - start > 1000) { end = start + 1000; }
+      this.query(`SELECT * FROM Spends WHERE id >= ${start} && id <= ${end}`, (err, rows) => {
+        if (err) { cb(err); }
+        else { cb(null, rows); }
+      })
+    }
+  }
+
+  getUtxoProvenance(id, cb, provenance=[]) {
+    this.query(`SELECT * FROM Spends WHERE newTx1='${id}' OR newTx2='${id}'`, (err, spends) => {
+      if (err) { cb(err); }
+      else if (spends.length == 0) { cb(null, provenance); }
+      else {
+        provenance.push(spends[0]);
+        this.getUtxoProvenance(spends[0].oldTx, cb, provenance);
+      }
+    });
   }
 
   // Get a single record

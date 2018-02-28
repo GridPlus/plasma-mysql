@@ -66,14 +66,89 @@ plasma-sql provides an easy interface for managing plasma transactions off-chain
 
 Replay a deposit that was made on the root chain. This will create a UTXO object.
 
+*params*:
+```
+{
+  to: <string>,     // 0x-prefixed Ethereum address of depositor
+  value: <int>,     // atomic units of token deposited
+  txHash: <string>, // 0x-prefixed hash of deposit transaction
+  chainId: <int>,   // [OPTIONAL] id of blockchain on which deposit was made
+  tokenId: <string>,// [OPTIONAL] address of token on deposit blockchain
+}
+```
+
+*cb*: (<Error>)
+
 ### self.spendUtxo(params, cb)
 
 Spend a UTXO and create 1 or 2 new UTXOs from it. Signature from user is required.
+
+*params*:
+```
+{
+  id: <string>,     // id of the UTXO (txHash or derived from previous UTXO)
+  to: <string>,     // recipient of payment
+  value: <int>,     // atomic units of payment
+  v: <int>,         // 27 or 28
+  r: <string>,
+  s: <string>,
+}
+```
+
+*cb*: (<Error>)
+
+### self.getUserUtxos(user, cb)
+
+Get all of a user's open UTXOs.
+
+*cb*: (<Error>, <array>) with array of:
+
+```
+{
+  id: <string>,
+  owner: <string>,
+  value: <int>,
+  tokenId: <string>,
+  chainId: <string>,
+  deleted: 0,
+  createdAt: <timestamp>
+}
+```
 
 ### self.startWithdrawal(params, cb)
 
 Replay the start of a withdrawal on the root chain. This will delete the corresponding UTXO in the database.
 
-## self.merge(params, cb)
+*params* <Object>:
+```
+{
+  id: <string>,         // UTXO identifier
+  txHash: <string>,     // transaction hash of withdrawal on the root chain
+  chainId: <string>,    // [OPTIONAL] id of the root chain
+  tokenId: <string>     // [OPTIONAL] address of token being withdrawn
+}
+```
+*cb* <Error>
 
-Merge two UTXOs for easier withdrawals on the root chain. Requires user signature. Destroys the original 2 UTXOs and creates a new one.
+### self.getUtxoProvenance(id, cb)
+
+Get the full provenance of a UTXO given its id.
+
+*id* <string>: UTXO identifier to get provenance on
+
+*cb*: (<Error>, <array>) with array of Spend objects:
+
+```
+{
+  id: <int>,                // SQL id of Spend record
+  oldTx: <string>,          // id of UTXO that was spent
+  value: <int>,             // amount spent
+  toAddr: <string>,         // recipient of newTx1
+  newTx1: <string>,         // UTXO created with value specified to toAddr
+  newTx2: <string>,         // UTXO created if there is change, owned by sender
+  v: <int>,   
+  r: <string>,
+  s: <string>,  
+  createdAt: <timestamp>
+}
+```
