@@ -1,4 +1,4 @@
-# plasma-mysql
+# plasma-sql
 mySQL wrapper for plasma functionality
 
 The Ethereum plasma [specification](https://ethresear.ch/t/minimal-viable-plasma/426) outlines a mechanism to deposit tokens of value into an auxiliary system and further guarantees users the ability to withdraw those tokens as long as they remain unspent.
@@ -10,10 +10,10 @@ Although this side-system is presumed to be a blockchain (likely of centralized 
 You can install with:
 
 ```
-npm install plasma-mysql
+npm install plasma-sql
 ```
 
-The library is a wrapper over an existing `mysql` connection object:
+The library is a wrapper over an existing `mysql` connection object. It may be usable with other connections, but has only been tested with the `mysql` package.
 
 ```
 var mysql = require('mysql');
@@ -48,7 +48,12 @@ plasmaConn.query(`SELECT * FROM Utxos WHERE id='${deposit.txHash}'`, (err, resul
 
 ## UTXO Standard
 
-Newly created UTXO (unspent transaction output) records have id equal to the Ethereum transaction hash of the corresponding deposit. Otherwise, the id of a UTXO can be determined as:
+UTXO (unspent transaction output) objects represent deposits made on the Ethereum root chain. They can be spent off-chain and an owner may withdraw any UTXO he or she owns at any time, but once that withdrawal is triggered the user should not be able to spend the UTXO on your application. You should watch the anchored root chain plasma contract for any withdrawals and quickly replay them on your state. If you don't and the user spends his or her UTXO, it will be difficult to resolve. *Note that in some plasma implementations, the user may incur a penalty on-chain for spending a UTXO when it is being withdrawn.* There are several ways to avoid this situation (e.g. by exposing the plasma interface through your app), but they are out of the scope of this module.
+
+UTXOs can be created in one of two ways:
+
+1. Corresponding to a deposit, the UTXO is created with an `id` equal to the Ethereum transaction hash of the deposit on the root chain.
+2. From a spend, which creates one or two new UTXOs (two if there is change). The id of a UTXO can be determined as:
 
 ```
 keccak256(previousId, to, value)
@@ -56,7 +61,7 @@ keccak256(previousId, to, value)
 
 Where `previousId` is the id of the UTXO that created this one.
 
-To withdraw a UTXO on a plasma chain, the user would need to collect signatures spending each UTXO that led to the one being withdrawn. Thus, UTXO spends and signatures thereof are stored in the sql database.
+To withdraw a UTXO on a plasma chain, the user would need to collect signatures spending each UTXO that led to the one being withdrawn. This is called the *provenance* of the UTXO and can be collected via `getUtxoProvenance()` (see API). The longer this provenance, the more costly a withdrawal - good UX designs should keep this constraint in mind.
 
 ## API
 
@@ -77,7 +82,7 @@ Replay a deposit that was made on the root chain. This will create a UTXO object
 }
 ```
 
-*cb*: (<Error>)
+*cb*: (Error)
 
 ### self.spendUtxo(params, cb)
 
@@ -95,13 +100,13 @@ Spend a UTXO and create 1 or 2 new UTXOs from it. Signature from user is require
 }
 ```
 
-*cb*: (<Error>)
+*cb*: (Error)
 
 ### self.getUserUtxos(user, cb)
 
 Get all of a user's open UTXOs.
 
-*cb*: (<Error>, <array>) with array of:
+*cb*: (Error, array) with array of:
 
 ```
 {
@@ -119,7 +124,7 @@ Get all of a user's open UTXOs.
 
 Replay the start of a withdrawal on the root chain. This will delete the corresponding UTXO in the database.
 
-*params* <Object>:
+*params* Object:
 ```
 {
   id: <string>,         // UTXO identifier
@@ -128,15 +133,15 @@ Replay the start of a withdrawal on the root chain. This will delete the corresp
   tokenId: <string>     // [OPTIONAL] address of token being withdrawn
 }
 ```
-*cb* <Error>
+*cb* Error
 
 ### self.getUtxoProvenance(id, cb)
 
 Get the full provenance of a UTXO given its id.
 
-*id* <string>: UTXO identifier to get provenance on
+*id* string: UTXO identifier to get provenance on
 
-*cb*: (<Error>, <array>) with array of Spend objects:
+*cb*: (Error, array) with array of Spend objects:
 
 ```
 {
