@@ -2,7 +2,7 @@
 
 exports.tables = function() {
   let q1 = 'CREATE TABLE IF NOT EXISTS Utxos (id VARCHAR(66), owner VARCHAR(42), value INT, ';
-  q1 += ' tokenId VARCHAR(42), chainId INT, deleted BOOL, createdAt TIMESTAMP)';
+  q1 += ' tokenId VARCHAR(42), chainId INT, deleted TINYINT(1) DEFAULT 0, createdAt TIMESTAMP)';
 
   let q2 = 'CREATE TABLE IF NOT EXISTS Creates (id VARCHAR(66), owner VARCHAR(42), value INT, '
   q2 += 'tokenId VARCHAR(42), chainId INT, createdAt TIMESTAMP)';

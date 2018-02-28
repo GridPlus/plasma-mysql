@@ -39,6 +39,7 @@ class PlasmaSql {
       this.getOne(q, (err, utxo) => {
         if (utxo.owner != signer) { cb('Signer does not own UTXO.'); }
         else if (utxo.value < value) { cb('Insufficient value in UTXO.'); }
+        else if (utxo.deleted == 1) { cb('UTXO already spent.'); }
         else {
           // Delete the original (old) UTXO
           this.deleteUtxos(id, (err) => {
@@ -49,7 +50,7 @@ class PlasmaSql {
               const newId1 = hash;
               const q1 = createUtxo(to, value, newId1);
               const newId2 = value < utxo.value ? this.newId(id, signer, utxo.value - value) : null;
-              const q2 = newId2 == null ? null : createUtxo(to, utxo.value - value, newId2);
+              const q2 = newId2 == null ? null : createUtxo(signer, utxo.value - value, newId2);
               const qs = newId2 == null ? [q1] : [q1, q2];
               this.multiQuery(qs, cb);
             }
@@ -59,6 +60,15 @@ class PlasmaSql {
     } catch (err) {
       cb(err);
     }
+  }
+
+  // Get all Utxos belonging to a particular user
+  getUserUtxos(user, cb) {
+    const q = `SELECT * FROM Utxos WHERE owner='${user}' AND deleted=0`;
+    this.query(q, (err, rows) => {
+      if (err) { cb(err); }
+      else { cb(null, rows); }
+    })
   }
 
   // Register a withdrawal that happened on the root chain. Delete the UTXO

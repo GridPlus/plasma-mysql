@@ -127,5 +127,42 @@ describe('2. Create, spend, and merge UTXOs', () => {
     });
   });
 
+  it('Should fail spend some of the deleted UTXO', (done) => {
+    const to = '0x' + newAddr.toString('hex');
+    const h = getSpendHash(id1, to, 2);
+    const sig = signHash(h, key);
+    const params = {
+      id: id1,
+      to: to,
+      value: 2,
+      v: sig.v,
+      r: sig.r.toString('hex'),
+      s: sig.s.toString('hex'),
+    };
+    const signerPubKey = ethutil.ecrecover(Buffer.from(h.slice(2), 'hex'), sig.v, sig.r, sig.s);
+    const signer = '0x' + ethutil.publicToAddress(signerPubKey).toString('hex');
+    assert(signer === addr);
+    plasmaSql.spendUtxo(params, (err) => {
+      assert(err == 'UTXO already spent.');
+      done();
+    });
+  });
 
+  it('Should check the users Utxos and find a new Utxo', (done) => {
+    plasmaSql.getUserUtxos(addr, (err, utxos) => {
+      assert(err === null);
+      assert(utxos.length === 1);
+      assert(utxos[0].value === 8);
+      done();
+    });
+  });
+});
+
+describe('Cleanup', () => {
+  it('Should drop tables', () => {
+    const q = 'drop table Creates; drop table Deposits; drop table Spends; drop table Utxos; drop table Withdrawals';
+    plasmaSql.query(q, (err) => {
+      assert(err === null);
+    })
+  })
 });
