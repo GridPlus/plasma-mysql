@@ -17,13 +17,14 @@ The library is a wrapper over an existing `mysql` connection object:
 
 ```
 var mysql = require('mysql');
-var PlasmaSql = require('plasma-sql').PlasmaSql;
+var PlasmaSql = require('plasma-sql').default;
 
 var connection = mysql.createConnection({
   host     : 'localhost',
   user     : 'me',
   password : 'secret',
-  database : 'my_db'
+  database : 'my_db',
+  multipleStatements: true  //this is required!
 });
 
 // Create your plasma connection object

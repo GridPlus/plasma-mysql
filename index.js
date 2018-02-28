@@ -1,6 +1,6 @@
 // Plasma functionality for a MySQL instance
-import { utxos, creates, spends, deposits, withdrawals, merges } from './queries/tables.js';
-import { logDeposit, createUtxo } from './queries/utxo.js';
+const { tables } = require('./queries/tables.js');
+const { logDeposit, createUtxo, getUtxo, deleteUtxo } = require('./queries/utxo.js');
 const sha3 = require('solidity-sha3').default;
 const leftPad = require('left-pad');
 const ethutil = require('ethereumjs-util');
@@ -8,7 +8,6 @@ const ethutil = require('ethereumjs-util');
 class PlasmaSql {
   constructor (conn) {
     this.conn = conn;
-    this.conn.connect();
     this.createTables();
   }
 
@@ -31,10 +30,12 @@ class PlasmaSql {
     // Check the signature spending the UTXO
     try {
       // Check the signer of the spend message
-      const hash = sha3(`${id}${to.slice(2)}${leftPad(value.toString('hex'), 64, '0')}`);
-      const signerPubKey = ethutil.ecrecover(hash, v, r, s);
+      const hash = sha3(`${id}${to.slice(2)}${leftPad(value.toString(16), 64, '0')}`);
+      const br = Buffer.from(r, 'hex');
+      const bs = Buffer.from(s, 'hex');
+      const signerPubKey = ethutil.ecrecover(Buffer.from(hash.slice(2), 'hex'), v, br, bs);
       const signer = ethutil.publicToAddress(signerPubKey);
-      const q = utxo.getUtxo(id);
+      const q = getUtxo(id);
       this.getOne(q, (err, utxo) => {
         if (utxo.owner != signer) { cb('Signer does not own UTXO.'); }
         else if (utxo.value < value) { cb('Insufficient value in UTXO.'); }
@@ -102,23 +103,24 @@ class PlasmaSql {
           })
         }
       })
-    }
+    } catch (err) { cb(err); }
   }
 
   // Send a bunch of CREATE IF NOT EXISTS commands to the connection.
   // There are a few tables required for plasma functionality
   createTables() {
-    this.query(tables(), (err, results, fields) => {
+    const tableQs = tables();
+    this.multiQuery(tableQs, (err) => {
       if (err) { throw new Error(err); }
     })
   }
 
   // Get a single record
   getOne(q, cb) {
-    this.query(q, (err, results, fields) {
+    this.query(q, (err, results, fields) => {
       if (err) { cb(err); }
       else { cb(null, results[0]); }
-    }
+    })
   }
 
   query(data, cb) {
@@ -140,25 +142,27 @@ class PlasmaSql {
       const delQ = utxo.delete(id);
       this.query(delQ, (err) => {
         if (err) { outerCb(err); }
-        else { deleteUtxos(ids, cb, outerCb); }
+        else { this.deleteUtxos(ids, cb, outerCb); }
       })
     }
   }
 
   // Play multiple queries in sequence. The order is preserved.
-  multiQuery(queries, cb, outerCb=null) {
-    if (queries.length == 0) { outerCb(null); }
-    else {
-      const q = queries.reverse().pop();
-      this.query(q, (err) => {
-        if (err) { outerCb(err); }
-        else { multiQuery(queries, cb, outerCb); }
-      })
-    }
+  multiQuery(queries, cb) {
+    // Join separate queries on ;
+    const joined = queries.join('; ')
+    this.query(joined, (err) => {
+      if (err) { cb(err); }
+      else { cb(null); }
+    });
   }
 
   newId(to, oldId, extraData=1) {
     return sha3(to, oldId, extraData);
   }
 
+  close() { this.conn.end(); }
+
 }
+
+exports.default = PlasmaSql;
